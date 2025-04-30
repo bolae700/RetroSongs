@@ -13,6 +13,9 @@
         }
 
         body {
+        -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
             background: radial-gradient(circle at 50% 50%, 
                     rgba(0, 50, 30, 0.15) 0%, 
                     var(--dark-background) 100%
@@ -354,14 +357,14 @@
 
     <script>
 const audio = new Audio();
+audio.setAttribute('playsinline', '');
+audio.crossOrigin = "anonymous";
 let isPlaying = false;
 let currentTrackIndex = 0;
 let audioContext, analyser, source;
 let isProcessing = false;
 let isUserInteracted = false;
 let animationFrameId;
-
-audio.crossOrigin = "anonymous";
 
 const playlistItems = document.querySelectorAll('.playlist-item');
 const tracks = Array.from(playlistItems).map(item => ({
@@ -370,7 +373,7 @@ const tracks = Array.from(playlistItems).map(item => ({
     artist: item.textContent.split(' - ')[0].split('. ')[1]
 }));
 
-// تفعيل السياق الصوتي للهواتف
+// تفعيل الصوت للهواتف
 document.addEventListener('click', initUserInteraction);
 document.addEventListener('touchstart', handleMobileTouch, { passive: false });
 
@@ -385,7 +388,13 @@ function initUserInteraction() {
         initAudioContext();
         document.removeEventListener('click', initUserInteraction);
         document.removeEventListener('touchstart', handleMobileTouch);
-        audio.play().then(() => audio.pause()).catch(() => {});
+        
+        // تشغيل صوت صامت لتفعيل السياسة
+        const silentAudio = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU=');
+        silentAudio.play().then(() => {
+            silentAudio.pause();
+            audio.play().then(() => audio.pause());
+        }).catch(() => {});
     }
 }
 
@@ -490,7 +499,9 @@ async function togglePlay() {
         
         if (isPlaying) {
             if (!audioContext) initAudioContext();
-            await audio.play();
+            await audio.play().catch(err => {
+                setTimeout(() => audio.play(), 300);
+            });
             updateVisualizer();
         } else {
             audio.pause();
