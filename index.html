@@ -353,191 +353,236 @@
     </div>
 
     <script>
-        const audio = new Audio();
-        let isPlaying = false;
-        let currentTrackIndex = 0;
-        let audioContext, analyser, source;
-        let isProcessing = false;
-        let isUserInteracted = false;
-        let animationFrameId;
+const audio = new Audio();
+let isPlaying = false;
+let currentTrackIndex = 0;
+let audioContext, analyser, source;
+let isProcessing = false;
+let isUserInteracted = false;
+let animationFrameId;
 
-        audio.crossOrigin = "anonymous";
+audio.crossOrigin = "anonymous";
 
-        const playlistItems = document.querySelectorAll('.playlist-item');
-        const tracks = Array.from(playlistItems).map(item => ({
-            url: item.getAttribute('data-id'),
-            title: item.textContent.split(' - ')[1],
-            artist: item.textContent.split(' - ')[0].split('. ')[1]
-        }));
+const playlistItems = document.querySelectorAll('.playlist-item');
+const tracks = Array.from(playlistItems).map(item => ({
+    url: item.getAttribute('data-id'),
+    title: item.textContent.split(' - ')[1],
+    artist: item.textContent.split(' - ')[0].split('. ')[1]
+}));
 
-        // تفعيل السياق الصوتي عند التفاعل الأول
-        document.addEventListener('click', initUserInteraction);
-        document.addEventListener('touchstart', initUserInteraction);
+// تفعيل السياق الصوتي للهواتف
+document.addEventListener('click', initUserInteraction);
+document.addEventListener('touchstart', handleMobileTouch, { passive: false });
 
-        function initUserInteraction() {
-            if (!isUserInteracted) {
-                isUserInteracted = true;
-                initAudioContext();
-                document.removeEventListener('click', initUserInteraction);
-                document.removeEventListener('touchstart', initUserInteraction);
-            }
+function handleMobileTouch(e) {
+    e.preventDefault();
+    initUserInteraction();
+}
+
+function initUserInteraction() {
+    if (!isUserInteracted) {
+        isUserInteracted = true;
+        initAudioContext();
+        document.removeEventListener('click', initUserInteraction);
+        document.removeEventListener('touchstart', handleMobileTouch);
+        audio.play().then(() => audio.pause()).catch(() => {});
+    }
+}
+
+function initAudioContext() {
+    if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        source = audioContext.createMediaElementSource(audio);
+        source.connect(analyser);
+        analyser.connect(audioContext.destination);
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.8;
+    }
+}
+
+// تحريك المؤشر لللمس
+let lastTouchTime = 0;
+document.addEventListener('touchstart', (e) => {
+    const now = Date.now();
+    if (now - lastTouchTime < 100) return;
+    lastTouchTime = now;
+    
+    const cursor = document.getElementById('cursor');
+    cursor.style.left = `${e.touches[0].clientX}px`;
+    cursor.style.top = `${e.touches[0].clientY}px`;
+}, { passive: true });
+
+// تفعيل النقر على عناصر القائمة
+document.querySelectorAll('.playlist-item').forEach(item => {
+    item.addEventListener('click', handleTrackClick);
+    item.addEventListener('touchend', handleTrackClick);
+});
+
+function handleTrackClick(e) {
+    if(isProcessing) return;
+    const index = Array.from(playlistItems).indexOf(e.currentTarget);
+    if(index !== -1) loadTrack(index);
+}
+
+async function loadTrack(index) {
+    if(isProcessing) return;
+    isProcessing = true;
+    
+    try {
+        if (isPlaying) {
+            audio.pause();
+            isPlaying = false;
+            document.getElementById('playBtn').textContent = '▶';
         }
 
-        function initAudioContext() {
-            if (!audioContext || audioContext.state === 'closed') {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioContext.createAnalyser();
-                source = audioContext.createMediaElementSource(audio);
-                source.connect(analyser);
-                analyser.connect(audioContext.destination);
-                analyser.fftSize = 256;
-                analyser.smoothingTimeConstant = 0.8;
-            }
-        }
-
-        // أحداث تحريك المؤشر
-        document.addEventListener('mousemove', (e) => {
-            const cursor = document.getElementById('cursor');
-            cursor.style.left = `${e.clientX}px`;
-            cursor.style.top = `${e.clientY}px`;
-
-            if (particleCooldown <= 0) {
-                const particle = document.createElement('div');
-                particle.style.cssText = `
-                    left: ${e.clientX}px;
-                    top: ${e.clientY}px;
-                    width: 2px;
-                    height: 2px;
-                    background: ${Math.random() > 0.5 ? '#00ff88' : '#00ff8840'};
-                    position: fixed;
-                    border-radius: 50%;
-                    pointer-events: none;
-                    animation: fade 1s forwards;
-                `;
-                document.getElementById('particles-layer').appendChild(particle);
-                setTimeout(() => particle.remove(), 600);
-                particleCooldown = 5;
-            }
-            particleCooldown--;
+        currentTrackIndex = index;
+        audio.src = tracks[index].url;
+        
+        await new Promise((resolve) => {
+            audio.addEventListener('canplaythrough', resolve, { once: true });
+            audio.load();
         });
 
-        let particleCooldown = 5;
+        document.querySelectorAll('.playlist-item').forEach(item => 
+            item.classList.remove('playing'));
+        playlistItems[index].classList.add('playing');
+        document.getElementById('song-title').textContent = tracks[index].title;
+        document.getElementById('artist-name').textContent = tracks[index].artist;
 
-        function updateVisualizer() {
-            if (!analyser) return;
-            
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            analyser.getByteFrequencyData(dataArray);
-
-            const visualizerBars = document.querySelectorAll('.visualizer-bar');
-            visualizerBars.forEach((bar, index) => {
-                const freqIndex = Math.floor(index * (bufferLength / visualizerBars.length));
-                const value = dataArray[freqIndex] || 0;
-                bar.style.height = `${(value / 255) * 24}px`;
-            });
-
-            animationFrameId = requestAnimationFrame(updateVisualizer);
+        if (isPlaying) {
+            await audio.play();
+            updateVisualizer();
         }
+    } catch (error) {
+        console.error('Error loading track:', error);
+        isPlaying = false;
+        document.getElementById('playBtn').textContent = '▶';
+    }
+    isProcessing = false;
+}
 
-        async function loadTrack(index) {
-            if(isProcessing) return;
-            isProcessing = true;
-            
-            try {
-                if (isPlaying) {
-                    audio.pause();
-                    isPlaying = false;
-                    document.getElementById('playBtn').textContent = '▶';
-                }
+// تحسين استجابة الأزرار
+document.querySelectorAll('.neon-button').forEach(btn => {
+    btn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        btn.click();
+    }, { passive: false });
+    
+    btn.addEventListener('mousedown', (e) => {
+        e.currentTarget.style.transform = 'scale(0.92)';
+    });
+    
+    btn.addEventListener('mouseup', (e) => {
+        e.currentTarget.style.transform = '';
+    });
+});
 
-                currentTrackIndex = index;
-                audio.src = tracks[index].url;
-                await new Promise((resolve) => {
-                    audio.addEventListener('canplaythrough', resolve, { once: true });
-                    audio.load();
-                });
-
-                document.querySelectorAll('.playlist-item').forEach(item => 
-                    item.classList.remove('playing'));
-                playlistItems[index].classList.add('playing');
-                document.getElementById('song-title').textContent = tracks[index].title;
-                document.getElementById('artist-name').textContent = tracks[index].artist;
-
-                if (isPlaying) {
-                    await audio.play();
-                    updateVisualizer();
-                }
-            } catch (error) {
-                console.error('Error loading track:', error);
-                isPlaying = false;
-                document.getElementById('playBtn').textContent = '▶';
-            }
-            isProcessing = false;
+async function togglePlay() {
+    if(!isUserInteracted) return;
+    if(isProcessing) return;
+    isProcessing = true;
+    
+    try {
+        isPlaying = !isPlaying;
+        const playBtn = document.getElementById('playBtn');
+        playBtn.textContent = isPlaying ? '⏸' : '▶';
+        
+        if (isPlaying) {
+            if (!audioContext) initAudioContext();
+            await audio.play();
+            updateVisualizer();
+        } else {
+            audio.pause();
+            cancelAnimationFrame(animationFrameId);
         }
+    } catch (error) {
+        console.error('Playback error:', error);
+        isPlaying = false;
+        document.getElementById('playBtn').textContent = '▶';
+    }
+    isProcessing = false;
+}
 
-        async function togglePlay() {
-            if(isProcessing || !isUserInteracted) return;
-            isProcessing = true;
-            
-            try {
-                isPlaying = !isPlaying;
-                const playBtn = document.getElementById('playBtn');
-                playBtn.textContent = isPlaying ? '⏸' : '▶';
-                
-                if (isPlaying) {
-                    if (!audioContext) initAudioContext();
-                    await audio.play();
-                    updateVisualizer();
-                } else {
-                    audio.pause();
-                    cancelAnimationFrame(animationFrameId);
-                }
-            } catch (error) {
-                console.error('Playback error:', error);
-                isPlaying = false;
-                document.getElementById('playBtn').textContent = '▶';
-            }
-            isProcessing = false;
-        }
+async function prevTrack() {
+    if(isProcessing) return;
+    currentTrackIndex = (currentTrackIndex - 1 + tracks.length) % tracks.length;
+    await loadTrack(currentTrackIndex);
+    if (isPlaying) await audio.play();
+}
 
-        async function prevTrack() {
-            if(isProcessing) return;
-            currentTrackIndex = (currentTrackIndex - 1 + tracks.length) % tracks.length;
-            await loadTrack(currentTrackIndex);
-            if (isPlaying) await audio.play();
-        }
+async function nextTrack() {
+    if(isProcessing) return;
+    currentTrackIndex = (currentTrackIndex + 1) % tracks.length;
+    await loadTrack(currentTrackIndex);
+    if (isPlaying) await audio.play();
+}
 
-        async function nextTrack() {
-            if(isProcessing) return;
-            currentTrackIndex = (currentTrackIndex + 1) % tracks.length;
-            await loadTrack(currentTrackIndex);
-            if (isPlaying) await audio.play();
-        }
+// التحكم في الصوت
+document.getElementById('volumeSlider').addEventListener('input', (e) => {
+    audio.volume = e.target.value;
+});
 
-        // أحداث التحكم
-        document.getElementById('volumeSlider').addEventListener('input', (e) => {
-            audio.volume = e.target.value;
-        });
+// شريط التقدم
+audio.addEventListener('timeupdate', () => {
+    const progress = (audio.currentTime / audio.duration) * 100 || 0;
+    document.getElementById('progressBar').style.width = `${progress}%`;
+});
 
-        audio.addEventListener('timeupdate', () => {
-            const progress = (audio.currentTime / audio.duration) * 100 || 0;
-            document.getElementById('progressBar').style.width = `${progress}%`;
-        });
+// الانتقال التلقائي للأغنية التالية
+audio.addEventListener('ended', nextTrack);
 
-        audio.addEventListener('ended', nextTrack);
+// تحريك المؤشر للماوس
+document.addEventListener('mousemove', (e) => {
+    const cursor = document.getElementById('cursor');
+    cursor.style.left = `${e.clientX}px`;
+    cursor.style.top = `${e.clientY}px`;
+});
 
-        // دعم اللمس
-        document.querySelectorAll('.neon-button').forEach(btn => {
-            btn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                btn.click();
-            });
-        });
+// تأثيرات الجسيمات
+let particleCooldown = 5;
+document.addEventListener('mousemove', (e) => {
+    if (particleCooldown <= 0) {
+        const particle = document.createElement('div');
+        particle.style.cssText = `
+            left: ${e.clientX}px;
+            top: ${e.clientY}px;
+            width: 2px;
+            height: 2px;
+            background: ${Math.random() > 0.5 ? '#00ff88' : '#00ff8840'};
+            position: fixed;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: fade 1s forwards;
+        `;
+        document.getElementById('particles-layer').appendChild(particle);
+        setTimeout(() => particle.remove(), 600);
+        particleCooldown = 5;
+    }
+    particleCooldown--;
+});
 
-        // تهيئة أولية
-        loadTrack(0);
-        audio.volume = 0.8;
+// تحديث المرئيات
+function updateVisualizer() {
+    if (!analyser) return;
+    
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    analyser.getByteFrequencyData(dataArray);
+
+    const visualizerBars = document.querySelectorAll('.visualizer-bar');
+    visualizerBars.forEach((bar, index) => {
+        const freqIndex = Math.floor(index * (bufferLength / visualizerBars.length));
+        const value = dataArray[freqIndex] || 0;
+        bar.style.height = `${(value / 255) * 24}px`;
+    });
+
+    animationFrameId = requestAnimationFrame(updateVisualizer);
+}
+
+// التهيئة الأولية
+loadTrack(0);
+audio.volume = 0.8;
     </script>
 </body>
 </html>
