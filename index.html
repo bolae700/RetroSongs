@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ar">
 <head>
@@ -28,6 +27,7 @@ body {
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10"><path fill="%2300ff88" d="M0 0L8 5L0 10Z"/></svg>') 2 5, auto;
   background: var(--bg-color);
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
@@ -184,8 +184,70 @@ body {
   mix-blend-mode: screen;
 }
 
-.playlist {
-  display: none;
+/* قائمة التشغيل المدمجة */
+.playlist-container {
+  width: 92%;
+  max-width: 320px;
+  height: 120px;
+  background: var(--bg-color);
+  border: 1px solid var(--main-color);
+  box-shadow: 0 0 15px var(--secondary-color);
+  border-radius: 4px;
+  margin: 10px;
+  overflow: hidden;
+}
+
+.playlist-header {
+  padding: 6px;
+  background: #002200;
+  border-bottom: 1px solid var(--main-color);
+  font-size: 9px;
+  color: var(--main-color);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.playlist-items {
+  height: calc(100% - 28px);
+  overflow-y: auto;
+  padding: 3px;
+}
+
+.playlist-item {
+  padding: 4px 6px;
+  font-size: 9px;
+  color: var(--main-color);
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 2px;
+  margin: 1px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-item:hover {
+  background: var(--secondary-color);
+}
+
+.playlist-item.active {
+  background: var(--main-color);
+  color: #000;
+  box-shadow: 0 0 3px var(--main-color);
+}
+
+/* تخصيص شريط التمرير */
+.playlist-items::-webkit-scrollbar {
+  width: 4px;
+}
+
+.playlist-items::-webkit-scrollbar-track {
+  background: #001100;
+}
+
+.playlist-items::-webkit-scrollbar-thumb {
+  background: var(--main-color);
+  border-radius: 2px;
 }
 
 @media (max-width: 480px) {
@@ -202,12 +264,22 @@ body {
   .metadata {
     font-size: 9px;
   }
+  
+  .playlist-container {
+    height: 100px;
+    max-width: 300px;
+  }
+  
+  .playlist-item {
+    font-size: 8.5px;
+  }
 }
 </style>
 </head>
 <body>
 <canvas class="matrix-bg" id="matrixCanvas"></canvas>
 
+<!-- مشغل الموسيقى -->
 <div class="player-container">
   <div class="visual-display">
     <canvas class="audio-wave" id="visualizer"></canvas>
@@ -234,8 +306,10 @@ body {
   </div>
 </div>
 
-<div class="playlist">
-  <!-- قائمة الأغاني الكاملة -->
+<!-- قائمة التشغيل المدمجة -->
+<div class="playlist-container">
+  <div class="playlist-header">PLAYLIST - الأغاني</div>
+  <div class="playlist-items">
     <div class="playlist-item" data-id="https://audio.jukehost.co.uk/SuTEQBXLnzppeB3HrnndFr8R58adnNEY">
 NEON VEINS (1)</div>
     <div class="playlist-item" data-id="https://audio.jukehost.co.uk/FpVCyaTT7GN8Vutn6Br79gi4FF8mQcU9">
@@ -300,7 +374,8 @@ Neon</div>
 Ritmo Sin Final (1)</div>
         <div class="playlist-item" data-id="https://audio.jukehost.co.uk/lWXhOvsMFLpURzUE8MMvaOFtsVphy3TL">
 Ritmo Sin Final</div>
- </div>
+  </div>
+</div>
 
 <script>
 // ===== كود المطر الرقمي المُحسّن =====
@@ -353,6 +428,13 @@ const tracks = Array.from(playlistItems).map(item => ({
     url: item.getAttribute('data-id'),
     title: item.textContent.trim()
 }));
+
+// تحديث قائمة التشغيل
+function updatePlaylist() {
+  playlistItems.forEach((item, index) => {
+    item.classList.toggle('active', index === currentTrackIndex);
+  });
+}
 
 function togglePlay() {
     isPlaying = !isPlaying;
@@ -427,6 +509,7 @@ function loadTrack(index) {
     audio.src = tracks[index].url;
     document.getElementById('track-title').textContent = tracks[index].title;
     audio.load();
+    updatePlaylist();
     if (isPlaying) audio.play().catch(err => console.error('خطأ التحميل:', err));
 }
 
@@ -454,6 +537,11 @@ document.querySelectorAll('[data-action]').forEach(btn => {
             case 'next': loadTrack((currentTrackIndex + 1) % tracks.length); break;
         }
     });
+});
+
+// أحداث قائمة التشغيل
+playlistItems.forEach((item, index) => {
+  item.addEventListener('click', () => loadTrack(index));
 });
 
 audio.addEventListener('timeupdate', updateProgress);
