@@ -40,7 +40,7 @@ body {
 .player-container {
   width: 92%;
   max-width: 320px;
-  min-height: 180px;
+  min-height: 200px;
   background: #000;
   border: 2px solid var(--main-color);
   box-shadow: 0 0 25px var(--secondary-color);
@@ -113,6 +113,7 @@ body {
 .controls {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: auto auto;
   gap: 4px;
   padding: 8px;
   position: relative;
@@ -132,6 +133,7 @@ body {
   letter-spacing: 0.5px;
   position: relative;
   overflow: hidden;
+  white-space: nowrap;
 }
 
 .retro-btn::before {
@@ -154,6 +156,14 @@ body {
 
 .retro-btn:hover::before {
   opacity: 0.1;
+}
+
+.subscribe-btn {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
 }
 
 .status-bar {
@@ -184,7 +194,6 @@ body {
   mix-blend-mode: screen;
 }
 
-/* قائمة التشغيل المدمجة */
 .playlist-container {
   width: 92%;
   max-width: 320px;
@@ -236,7 +245,6 @@ body {
   box-shadow: 0 0 3px var(--main-color);
 }
 
-/* تخصيص شريط التمرير */
 .playlist-items::-webkit-scrollbar {
   width: 4px;
 }
@@ -253,12 +261,16 @@ body {
 @media (max-width: 480px) {
   .player-container {
     max-width: 300px;
-    min-height: 170px;
+    min-height: 190px;
   }
   
   .retro-btn {
     font-size: 10px;
     padding: 4px;
+  }
+  
+  .subscribe-btn {
+    font-size: 9px;
   }
   
   .metadata {
@@ -279,7 +291,6 @@ body {
 <body>
 <canvas class="matrix-bg" id="matrixCanvas"></canvas>
 
-<!-- مشغل الموسيقى -->
 <div class="player-container">
   <div class="visual-display">
     <canvas class="audio-wave" id="visualizer"></canvas>
@@ -298,6 +309,7 @@ body {
     <button class="retro-btn" data-action="prev">⏮ PREV</button>
     <button class="retro-btn" data-action="play">▶ PLAY</button>
     <button class="retro-btn" data-action="next">NEXT ⏭</button>
+    <button class="retro-btn subscribe-btn" data-action="subscribe">SUBSCRIBE TO MY YOUTUBE</button>
   </div>
 
   <div class="status-bar">
@@ -306,7 +318,6 @@ body {
   </div>
 </div>
 
-<!-- قائمة التشغيل المدمجة -->
 <div class="playlist-container">
   <div class="playlist-header">PLAYLIST - الأغاني</div>
   <div class="playlist-items">
@@ -334,7 +345,6 @@ body {
 </div>
 
 <script>
-// ===== كود المطر الرقمي المُحسّن =====
 const matrixChars = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン0123456789';
 const canvas = document.getElementById('matrixCanvas');
 const ctx = canvas.getContext('2d');
@@ -370,7 +380,6 @@ function drawMatrix() {
 }
 setInterval(drawMatrix, 50);
 
-// ===== نظام المشغل المُحسّن =====
 const audio = new Audio();
 let isPlaying = false;
 let currentTrackIndex = 0;
@@ -385,7 +394,6 @@ const tracks = Array.from(playlistItems).map(item => ({
     title: item.textContent.trim()
 }));
 
-// تحديث قائمة التشغيل
 function updatePlaylist() {
   playlistItems.forEach((item, index) => {
     item.classList.toggle('active', index === currentTrackIndex);
@@ -483,7 +491,6 @@ function formatTime(seconds) {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
-// إدارة الأحداث
 document.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', (e) => {
         const action = e.target.dataset.action;
@@ -491,11 +498,13 @@ document.querySelectorAll('[data-action]').forEach(btn => {
             case 'play': togglePlay(); break;
             case 'prev': loadTrack((currentTrackIndex - 1 + tracks.length) % tracks.length); break;
             case 'next': loadTrack((currentTrackIndex + 1) % tracks.length); break;
+            case 'subscribe': 
+                window.open('https://youtube.com/@BolaEmadWasef', '_blank');
+                break;
         }
     });
 });
 
-// أحداث قائمة التشغيل
 playlistItems.forEach((item, index) => {
   item.addEventListener('click', () => loadTrack(index));
 });
@@ -504,7 +513,6 @@ audio.addEventListener('timeupdate', updateProgress);
 audio.addEventListener('ended', () => loadTrack((currentTrackIndex + 1) % tracks.length));
 audio.addEventListener('error', (e) => console.error('خطأ الصوت:', e));
 
-// التحميل الأولي
 loadTrack(0);
 audio.volume = 1.0;
 </script>
